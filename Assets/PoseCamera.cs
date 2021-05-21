@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using OpenCvSharp;
 using OpenCvSharp.Dnn;
+using System.Threading.Tasks;
+
 public class PoseCamera : MonoBehaviour
 {
     int inWidth = 368;
@@ -16,25 +18,25 @@ public class PoseCamera : MonoBehaviour
 
     Mat frameCopy = new Mat();
 
-    WebCamTexture webcamTexture;
+    VideoCapture videoCapture;
+    Texture2D texture2D;
+
+    public static List<Point> KeyPoints { get; set; }
 
     private Net net;
     void Start()
     {
         this.net = CvDnn.ReadNetFromOnnx(Application.streamingAssetsPath + "/human-pose-estimation.onnx");
+        this.videoCapture = new VideoCapture(0);
 
-        webcamTexture = new WebCamTexture(); 
         Renderer renderer = GetComponent<Renderer>();
-        renderer.material.mainTexture = webcamTexture;
-        webcamTexture.Play();
 
-
-        Estimate();
+        texture2D = new Texture2D(640, 480, TextureFormat.RGBA32, true, true);
+        renderer.material.mainTexture = texture2D;
     }
 
-    private void Estimate()
+    private void Estimate(Mat frame)
     {
-        Mat frame = Cv2.ImRead(Application.streamingAssetsPath + "/boy.jpg");
         frameWidth = frame.Width;
         frameHeight = frame.Height;
 
@@ -44,16 +46,22 @@ public class PoseCamera : MonoBehaviour
 
         net.SetInput(inpBlob);
 
-        Mat output = net.Forward();
-        Debug.Log(output.Size().Width);
+        List<Mat> outputs = new List<Mat>()
+        {
+            new Mat(),
+            new Mat()
+        };
+        net.Forward(outputs, new string[]{ 
+            "stage_1_output_1_heatmaps", 
+            "stage_1_output_0_pafs" 
+        });
 
-        GetKeyPoints(output);
+        
+        GetKeyPoints(outputs[0]);
     }
 
     private List<Point> GetKeyPoints(Mat output)
     {
-        Debug.Log(output.Size(0) + "," + output.Size(1) +"," + output.Size(2) + ", " +  output.Size(3));
-
         int H = output.Size(2);
         int W = output.Size(3);
 
@@ -63,7 +71,6 @@ public class PoseCamera : MonoBehaviour
         {
             // Probability map of corresponding body's part.
             Mat probMap = new Mat(H, W, MatType.CV_32F, output.Ptr(0, n));
-            Cv2.ImShow("aaa", probMap);
 
             Point2f p = new Point2f(-1, -1);
             Point maxLoc;
@@ -81,19 +88,28 @@ public class PoseCamera : MonoBehaviour
 
                 Cv2.Circle(frameCopy, new Point((int)p.X, (int)p.Y), 8, new Scalar(0, 255, 255), -1);
                 Cv2.PutText(frameCopy, n.ToString(), new Point((int)p.X, (int)p.Y), HersheyFonts.HersheySimplex, 1, new Scalar(0, 0, 255), 2);
-
+                
             }
 
-            Cv2.ImShow("aa", frameCopy);
             points.Add((Point)p);
         }
+
 
         return points;
     }
 
-
     void Update()
     {
-        
+        if(videoCapture.IsOpened())
+        {
+            Mat frame = new Mat();
+            bool success = this.videoCapture.Read(frame);
+
+            if (success)
+            {
+                Estimate(frame);
+                texture2D.LoadImage(frame.ImEncode());
+            }
+        }
     }
 }
