@@ -1,3 +1,4 @@
+[![CodeFactor](https://www.codefactor.io/repository/github/wonder-tree/posecamera-csharp/badge)](https://www.codefactor.io/repository/github/wonder-tree/posecamera-csharp)
 > This repository is still in development, dont use for any production use.
 
 ## PoseCamera (csharp)
